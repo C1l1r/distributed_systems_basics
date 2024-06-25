@@ -1,0 +1,5 @@
+<hazelcast>
+    <queue name="bounded-queue">
+        <max-size>10</max-size>
+    </queue>
+</hazelcast>
