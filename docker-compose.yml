@@ -3,8 +3,6 @@ services:
   hazelcast1:
     image: hazelcast/hazelcast:latest
     container_name: hazelcast1
-    volumes:
-      - "${CD}/hazelcast.yml:/opt/hazelcast/hazelcast.yml"
     ports:
       - "5701:5701"
     networks:
@@ -13,8 +11,6 @@ services:
   hazelcast2:
     image: hazelcast/hazelcast:latest
     container_name: hazelcast2
-    volumes:
-      - "${CD}/hazelcast.yml:/opt/hazelcast/hazelcast.yml"
     ports:
       - "5702:5701"
     networks:
@@ -23,8 +19,6 @@ services:
   hazelcast3:
     image: hazelcast/hazelcast:latest
     container_name: hazelcast3
-    volumes:
-      - "${CD}/hazelcast.yml:/opt/hazelcast/hazelcast.yml"
     ports:
       - "5703:5701"
     networks:

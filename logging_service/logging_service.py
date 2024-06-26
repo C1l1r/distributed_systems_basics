@@ -7,7 +7,7 @@ import sys
 import uvicorn
 
 client = hazelcast.HazelcastClient(cluster_members = [f"127.0.0.1:{sys.argv[1]}"])
-messages_map = client.get_map("messages").blocking()
+messages_map = client.get_map("messages")
 
 app = FastAPI()
 
@@ -28,6 +28,6 @@ async def save_message(message: Message):
 @app.get("/messages")
 async def get_all_messages():
     print(messages_map.entry_set())
-    return '\n'.join(f'{{messageId: "{mid}", message: "{ms}"}}' for mid, ms in messages_map.entry_set())
+    return '\n'.join(f'{{messageId: "{mid}", message: "{ms}"}}' for mid, ms in messages_map.entry_set().result())
 
 uvicorn.run(app, port=int(sys.argv[2]))
