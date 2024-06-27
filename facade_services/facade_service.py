@@ -3,23 +3,50 @@ import random
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
-import uuid
 import hazelcast
-import sys
 import uvicorn
+import consul
+import uuid
+
+c = consul.Consul()
+
+PORT_FROM=8090
+PORT_TO=8200
+def find_free_port(consul):
+    services = consul.agent.services()
+    ports = {s['Port'] for _, s in services.items()}
+    for port in range(PORT_FROM, PORT_TO):
+        if port not in ports:
+            return port
 
 app = FastAPI()
+# Initialize the http client
+http_client = httpx.AsyncClient()
 
-client = hazelcast.HazelcastClient(cluster_members = [f"127.0.0.1:{sys.argv[1]}"])
-message_queue = client.get_queue("bounded-queue")
+port = find_free_port(c)
+facade_config = {'name' : f'facede_service',
+                 'service_id': str(uuid.uuid4()),
+                 'address' : 'localhost',
+                 'port': port
+                 }
+c.agent.service.register(**facade_config)
+print(f"Registered facade-service {facade_config['service_id']}")
+
+queue_name = c.kv.get('hazelcast_queue', index=None)[1]['Value'].decode()
+print(f"Queue: {queue_name}")
+
+hazelcast_port = int(random.choice(c.kv.get('hazelcast_ports')[1]['Value'].decode().split(',')))
+print(f"Hazelcast port: {hazelcast_port}")
+
+client = hazelcast.HazelcastClient(cluster_members = [f"127.0.0.1:{hazelcast_port}"])
+message_queue = client.get_queue(queue_name)
 
 # Define the Message model to send data
 class Message(BaseModel):
     messageId: str
     message: str
 
-# Initialize the http client
-http_client = httpx.AsyncClient()
+
 
 @app.post("/message")
 async def receive_message(request: Request):
@@ -31,7 +58,8 @@ async def receive_message(request: Request):
     # Create message object
     msg = Message(messageId=uuid_str, message=message)
 
-    port = random.choice([8081, 8082, 8083])
+    ports = [values['Port'] for _, values in c.agent.services().items() if values['Service'] == 'logging_service']
+    port = random.choice(ports)
 
     # Send the message to the logging service
     await http_client.post(f"http://localhost:{port}/save", json=msg.dict())
@@ -44,11 +72,13 @@ async def receive_message(request: Request):
 async def get_messages():
     # Fetch messages from the logging service
 
-    port = random.choice([8081, 8082, 8083])
+    ports = [values['Port'] for _, values in c.agent.services().items() if values['Service'] == 'logging_service']
+    port = random.choice(ports)
     logging_service_messages = await http_client.get(f"http://localhost:{port}/messages")
 
-    messages_port = random.choice([8085, 8086])
-    messages_services_messages =await http_client.get(f"http://localhost:{messages_port}/messages")
+    messagers_ports = [values['Port'] for _, values in c.agent.services().items() if values['Service'] == 'messages_service']
+    messages_port = random.choice(messagers_ports)
+    messages_services_messages = await http_client.get(f"http://localhost:{messages_port}/messages")
 
 
     return logging_service_messages.text + "\n ----------- \n" + messages_services_messages.text
@@ -66,4 +96,7 @@ async def shutdown_event():
     # Properly close the client
     await http_client.aclose()
 
-uvicorn.run(app, port=int(sys.argv[2]))
+try:
+    uvicorn.run(app, port=int(facade_config['port']))
+except:
+    c.service.deregister(facade_config['service_id'])

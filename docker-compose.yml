@@ -28,7 +28,7 @@ services:
     image: hazelcast/management-center:latest
     container_name: management-center
     ports:
-      - "8090:8080"
+      - "8079:8080"
     networks:
       - hazelcast-network
 
